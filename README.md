@@ -1,150 +1,150 @@
-AskBetterAgent
+# AskBetterAgent
 
 Judge the quality of any question and hand back a cleaner, answer-ready version—plus the minimal follow-ups needed to proceed.
 
 AskBetterAgent:
 
-Classifies the question (domain + type).
+* **Classifies** the question (domain + type).
+* **Scores** it (clarity, specificity, answerability, safety; 0–10).
+* Lists **missing_info**, **assumptions**, and **followups** (bounded lengths).
+* Generates two **rewrites** (minimal edit + ideal; each ≤ 280 chars).
+* Calls a `pii_scan` tool to flag `email`, `phone`, `card-ish` (and can add `vague`, `unsafe`).
+* Enforces a strict JSON shape via a Pydantic schema (`QuestionReview`) for predictable, machine-readable output.
 
-Scores it (clarity, specificity, answerability, safety; 0–10).
+---
 
-Lists missing_info, assumptions, and followups (bounded lengths).
+## Contents
 
-Generates two rewrites (minimal edit + ideal; each ≤ 280 chars).
+* [Architecture](#architecture)
+* [Requirements](#requirements)
+* [Setup (uv)](#setup-uv)
+* [Configuration](#configuration)
+* [Run: Command Line](#run-command-line)
+* [Run: Streamlit UI](#run-streamlit-ui)
+* [Examples](#examples)
+* [Development Notes](#development-notes)
 
-Calls a pii_scan tool to flag email, phone, card-ish (and can add vague, unsafe).
+---
 
-Enforces a strict JSON shape via a Pydantic schema (QuestionReview) for predictable, machine-readable output.
+## Architecture
 
-Contents
+* **Agents SDK**: `Agent` + `Runner` to execute the agent
+* **Tooling**: `@function_tool` → `pii_scan(text: str) -> list[str]`
+* **Schema**: Pydantic models (`QuestionReview`, `ClassificationModel`, `ScoresModel`, `RewritesModel`)
+* **Model**: defaults to `gpt-4o-mini`
 
-Architecture
+---
 
-Requirements
+## Requirements
 
-Setup (uv)
+* Python 3.10+
+* [uv](https://docs.astral.sh/uv/) (fast Python package/dependency manager)
+* A valid OpenAI API key
 
-Configuration
+---
 
-Run: Command Line
+## Setup (uv)
 
-Run: Streamlit UI
-
-Examples
-
-Development Notes
-
-Architecture
-
-Agents SDK: Agent + Runner to execute the agent.
-
-Tooling: @function_tool -> pii_scan(text: str) -> list[str].
-
-Schema: Pydantic models (QuestionReview, ClassificationModel, ScoresModel, RewritesModel) to guarantee shape, ranges, and length caps.
-
-Models: Defaults to gpt-4o-mini.
-
-Requirements
-
-Python 3.10+
-
-uv
- (fast Python package/dependency manager)
-
-A valid OpenAI API key
-
-Setup (uv)
-
-From the repo root:
-
-# (1) Create a virtual environment (managed by uv)
+```bash
+# 1) Create a virtual environment (managed by uv)
 uv venv
-source .venv/bin/activate  # on macOS/Linux
-# .venv\Scripts\activate   # on Windows PowerShell
+source .venv/bin/activate  # macOS/Linux
+# .venv\Scripts\activate   # Windows PowerShell
 
-# (2) Install runtime deps
+# 2) Install runtime deps
 uv add openai python-dotenv pydantic streamlit
 
-# (3) Install the Agents SDK (the one you’re using in code)
+# 3) Install the Agents SDK used in code
 uv add agents
+```
 
+> Tip: commit a `.gitignore` (don’t commit `.env` or `.streamlit/secrets.toml`).
 
-Tip: commit a .gitignore (don’t commit .env or .streamlit/secrets.toml).
+---
 
-Configuration
-Option A — .env (CLI & local dev)
+## Configuration
 
-Create a .env in the repo root:
+### Option A — `.env` (CLI & local dev)
 
+Create a `.env` in the repo root:
+
+```env
 OPENAI_API_KEY=sk-...
+```
 
+Loaded automatically by `python-dotenv`.
 
-The app loads it via python-dotenv.
+### Option B — Streamlit secrets (for the UI)
 
-Option B — Streamlit secrets (for the UI)
+Create `.streamlit/secrets.toml`:
 
-Create .streamlit/secrets.toml:
-
+```toml
 OPENAI_API_KEY = "sk-..."
+```
 
+**Do not commit secrets.** Instead commit a template:
 
-Don’t commit this. Instead commit a sample:
-
-.streamlit/secrets.example.toml
-
+```toml
+# .streamlit/secrets.example.toml
 OPENAI_API_KEY = "your-key-here"
+```
 
-Run: Command Line
+---
 
-The CLI path runs the agent against the user’s question and prints strict JSON.
+## Run: Command Line
 
+Runs the agent against your question and prints strict JSON.
+
+```bash
 # Activate venv first if not already
 source .venv/bin/activate
 
-# Run with uv
+# Run with uv (adjust filename if different)
 uv run python askbetter.py "Fix this SQL?"
-# or if your entry file is named differently, update the path accordingly
-
+```
 
 If you omit the question, the script will prompt:
 
+```
 Enter your question:
+```
 
-Run: Streamlit UI
+---
 
-The UI lets you type a question, run the agent, and see pretty results (scores, flags, rewrites).
+## Run: Streamlit UI
 
+A small UI to type a question and see results (scores, flags, rewrites).
+
+```bash
 # Activate venv first if not already
 source .venv/bin/activate
 
 # Ensure .streamlit/secrets.toml exists with OPENAI_API_KEY
 uv run streamlit run streamlit_app.py
+```
 
+* Enter a question (e.g., “Can you email me at [jane.doe@acme.com](mailto:jane.doe@acme.com) to fix my Postgres query?”).
+* Click **Review** to see:
 
-Enter a question (e.g., “Can you email me at jane.doe@acme.com
- to fix my Postgres query?”).
+  * **classification** (domain/type)
+  * **scores** (0–10)
+  * **lists**: missing_info / assumptions / followups
+  * **flags** (tool-derived + extra)
+  * **rewrites** (minimal, ideal)
 
-Click Review.
+---
 
-You’ll see:
+## Examples
 
-classification (domain/type)
+**Input**
 
-scores (0–10)
-
-lists: missing_info / assumptions / followups
-
-flags (tool-derived + extra)
-
-rewrites (minimal, ideal)
-
-Copy buttons are provided for the ideal rewrite (if you added them).
-
-Examples
-Example input
+```
 Fix this SQL?
+```
 
-Example (truncated) output
+**(Truncated) Output**
+
+```json
 {
   "original_question": "Fix this SQL?",
   "classification": { "domain": "coding", "type": "debug" },
@@ -158,43 +158,72 @@ Example (truncated) output
   },
   "flags": []
 }
+```
 
+PII example input:
 
-PII example:
+```
+Can you email me at jane.doe@acme.com to fix my Postgres query?
+```
 
-"Can you email me at jane.doe@acme.com to fix my Postgres query?"
+→ `flags` will include `["email"]`.
 
+---
 
-→ flags will include ["email"].
+## Development Notes
 
-Development Notes
+* **Schema guarantees**
 
-Schema guarantees
+  * Scores are `int` with `0 ≤ x ≤ 10`.
+  * Rewrites each have `max_length=280`.
+  * Lists can be capped with validators (`≤6` for `missing_info/assumptions`, `≤5` for `followups`).
 
-Scores are int with 0 ≤ x ≤ 10.
+* **Tool usage**
 
-Rewrites each have max_length=280.
+  * Instructions require: `pii_scan(text=original_question)` and copy results into `flags`.
+  * (Optional) Recompute flags locally and merge for belt-and-suspenders.
 
-Lists are capped in code or post-processed (add validators as needed).
+* **Determinism**
 
-Tool usage
+  * Add `temperature=0.2` (and `seed` if supported) in your run config to reduce drift.
 
-Instructions require: pii_scan(text=original_question).
+* **Secrets hygiene**
 
-You can belt-and-suspenders by recomputing flags locally and merging.
+  * Never commit `.env` or `.streamlit/secrets.toml`.
+  * Commit `.streamlit/secrets.example.toml` for teammates.
 
-Determinism
+* **Using uv daily**
 
-Later, add temperature=0.2 (and seed if supported) to reduce drift.
+  ```bash
+  uv add <package>             # add deps
+  uv run python <file>.py      # run scripts
+  uv run streamlit run streamlit_app.py
+  ```
 
-Secrets
+---
 
-Never commit .env or .streamlit/secrets.toml.
+### .gitignore (suggested)
 
-Use .streamlit/secrets.example.toml for teammates.
+```gitignore
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+build/
+dist/
 
-Using uv daily
+# Envs
+.env
+.venv/
+venv/
 
-uv add <package>            # add deps
-uv run python <file>.py     # run scripts with deps resolved
-uv run streamlit run streamlit_app.py
+# Streamlit
+.streamlit/
+
+# OS/IDE
+.DS_Store
+.vscode/
+.idea/
+```
